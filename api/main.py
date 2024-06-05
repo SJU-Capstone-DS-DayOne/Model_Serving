@@ -6,6 +6,7 @@ from torch import nn
 import numpy as np
 from . import functions
 import pymysql
+from typing import List, Union
 
 
 # DB에 연결
@@ -13,7 +14,15 @@ connection = functions.DB_CONNECT()
 cursor = connection.cursor()
 
 # 유저/레스토랑 임베딩 텐서 로드
-user_embedding, restaurant_embedding_KJ, restaurant_embedding_HD, restaurant_embedding_JS = functions.DATA_LOADER()
+# user_embedding, restaurant_embedding_KJ, restaurant_embedding_HD, restaurant_embedding_JS = functions.DATA_LOADER()
+
+
+
+#  --
+user_embedding = functions.DATA_LOADER('user')
+restaurant_embedding_KJ = functions.DATA_LOADER('KJ')
+restaurant_embedding_HD = functions.DATA_LOADER('HD')
+restaurant_embedding_JS = functions.DATA_LOADER('JS')
 
 # 전체 레스토랑에 대한 임베딩 텐서화
 embeddings_list = restaurant_embedding_KJ['embedding'].tolist()
@@ -24,7 +33,6 @@ embeddings_tensor_HD = torch.tensor(embeddings_list)
 
 embeddings_list = restaurant_embedding_JS['embedding'].tolist()
 embeddings_tensor_JS = torch.tensor(embeddings_list)
-
 
 # 활성 함수 정의
 activate_f = nn.Sigmoid()
@@ -134,8 +142,7 @@ async def test_couple(user1: int, user2: int):
     # 커플 유저 결과 추론 (음식점/카페/술집 전체 id 리스트)
     couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_KJ.t()))
 
-
-    _, couple_user_rating = torch.topk(couple_user_predict,k=50)
+    _, couple_user_rating = torch.topk(couple_user_predict,k=1000)
     result_restaurant_list = np.array(couple_user_rating).tolist()
 
 
@@ -154,7 +161,8 @@ async def test_couple(user1: int, user2: int):
     ids_query = ', '.join(map(str, result_restaurant_list))
 
     # 결과값에 매칭되는 RST/CAFE/BAR인지의 types 리스트 요청
-    sql = f"SELECT name, type FROM restaurant WHERE restaurant_id IN ({ids_query}) ORDER BY FIELD(restaurant_id, {ids_query})"
+    # sql = f"SELECT name, type FROM restaurant WHERE restaurant_id IN ({ids_query}) ORDER BY FIELD(restaurant_id, {ids_query})"
+    sql = f"SELECT name, type FROM restaurant WHERE restaurant_id IN ({ids_query}) ORDER BY FIELD(restaurant_id, {ids_query}) IN (SELECT restaurant_id FROM menu where ranking = 1)"
     cursor.execute(sql)
     sql_results = cursor.fetchall()
 
@@ -176,12 +184,44 @@ async def test_couple(user1: int, user2: int):
     result_dict = {
         "User1 Records": user1_interactions,
         "User2 Records": user2_interactions,
-        "RST": RST,
-        "CAFE": CAFE,
-        "BAR": BAR
+        "RST": RST[:18],
+        "CAFE": CAFE[:18],
+        "BAR": BAR[:18]
     }
 
     return result_dict
+
+# id_list = [0, 1, 2, 3, 4]
+# Cold Start
+@app.post("/coldstart")
+async def coldstart(new_user: int, restaurantid: Union[List[int], None] = None):
+    global restaurant_embedding_KJ, user_embedding
+
+    # 신규 유저 임베딩 초기화
+    new_user_embedding = torch.empty(1, 64)
+    nn.init.normal_(new_user_embedding, std=0.1)
+    new_user_embedding = new_user_embedding[0]
+
+    # 선택한 식당에 맞게 임베딩 업데이트
+    for id in restaurantid:
+        selected_embedding = torch.tensor(restaurant_embedding_KJ.loc[id, 'embedding'])
+        new_user_embedding += selected_embedding
+    
+    # 정규화
+    new_user_embedding = new_user_embedding / 5 
+    # print(new_user_embedding)
+
+    # 새로 추가할 신규 유저 행 생성
+    update_row = [new_user, new_user_embedding.tolist()]
+
+
+    # 신규 유저 업데이트 후 임베딩 다시 불러오기
+    functions.SAVE(update_row)
+    user_embedding = functions.DATA_LOADER('user')
+
+    return restaurantid
+
+
 
 
 # main
