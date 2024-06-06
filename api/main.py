@@ -76,8 +76,8 @@ async def recommend_couple(user1: int, user2: int, district: str):
     connection.ping(reconnect=True)
 
     # 각 유저의 임베딩 텐서화
-    user1_embedding_vector = torch.tensor(user_embedding.loc[user1,'embedding'])
-    user2_embedding_vector = torch.tensor(user_embedding.loc[user2,'embedding'])
+    user1_embedding_vector = torch.tensor(user_embedding[user_embedding.index == user1]['embedding'].values[0])
+    user2_embedding_vector = torch.tensor(user_embedding[user_embedding.index == user2]['embedding'].values[0])
 
     # 커플 임베딩 생성
     # couple_embedding_vector = torch.mul(user1_embedding_vector, user2_embedding_vector)
@@ -102,21 +102,33 @@ async def recommend_couple(user1: int, user2: int, district: str):
     ids_query = ', '.join(map(str, result_restaurant_list))
 
     # 결과값에 매칭되는 RST/CAFE/BAR인지의 types 리스트 요청
-    sql = f"SELECT name, type FROM restaurant WHERE restaurant_id IN ({ids_query}) ORDER BY FIELD(restaurant_id, {ids_query})"
-    cursor.execute(sql)
-    types = cursor.fetchall()
+    # sql = f"SELECT name, type FROM restaurant WHERE restaurant_id IN ({ids_query}) ORDER BY FIELD(restaurant_id, {ids_query})"
+    sql_query = f"""
+                    SELECT r.restaurant_id, r.type
+                    FROM restaurant AS r
+                    WHERE r.restaurant_id IN ({ids_query})
+                    AND r.restaurant_id IN (
+                        SELECT DISTINCT restaurant_id
+                        FROM menu
+                        WHERE ranking IS NOT NULL
+                    )
+                    ORDER BY FIELD(r.restaurant_id, {ids_query});
+                """
+    cursor.execute(sql_query)
+    sql_results = cursor.fetchall()
 
     # 결과값 음식점/카페/술집 분리
     RST, CAFE, BAR = [], [], []
-    for result_id, type in zip(result_restaurant_list, types):
-        category = type[1]
+    for sql_result in sql_results:
+        restaurant_id = sql_result[0]
+        category = sql_result[1]
 
         if category == 'RST':
-            RST.append(result_id)
+            RST.append(restaurant_id)
         elif category == 'CAFE':
-            CAFE.append(result_id)
+            CAFE.append(restaurant_id)
         else:
-            BAR.append(result_id)
+            BAR.append(restaurant_id)
 
 
     # 결과값 딕셔너리화
@@ -131,19 +143,35 @@ async def recommend_couple(user1: int, user2: int, district: str):
 
 # Test
 @app.get("/test/couple")
-async def test_couple(user1: int, user2: int):
+async def test_couple(user1: int, user2: int, district: str):
     # 각 유저의 임베딩 텐서화
-    user1_embedding_vector = torch.tensor(user_embedding.loc[user1,'embedding'])
-    user2_embedding_vector = torch.tensor(user_embedding.loc[user2,'embedding'])
+    user1_embedding_vector = torch.tensor(user_embedding[user_embedding.index == user1]['embedding'].values[0])
+    user2_embedding_vector = torch.tensor(user_embedding[user_embedding.index == user2]['embedding'].values[0])
 
     # 커플 임베딩 생성
     couple_embedding_vector = 0.5 * user1_embedding_vector + 0.5 * user2_embedding_vector
     
+    # 지역별로 달리하여
     # 커플 유저 결과 추론 (음식점/카페/술집 전체 id 리스트)
-    couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_KJ.t()))
+    if district == '광진':
+        couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_KJ.t()))
+        _, couple_user_rating = torch.topk(couple_user_predict,k=1000)
+        result_restaurant_list = np.array(couple_user_rating).tolist()
+        # result_restaurant_list = [r+]
+    elif district == '홍대':
+        couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_HD.t()))
+        _, couple_user_rating = torch.topk(couple_user_predict,k=500)
+        result_restaurant_list = np.array(couple_user_rating).tolist()
+    elif district == '잠실':
+        couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_JS.t()))
+        _, couple_user_rating = torch.topk(couple_user_predict,k=500)
+        result_restaurant_list = np.array(couple_user_rating).tolist()
+    else:
+        return "[Error] Wrong District Name"
 
-    _, couple_user_rating = torch.topk(couple_user_predict,k=1000)
-    result_restaurant_list = np.array(couple_user_rating).tolist()
+
+    # _, couple_user_rating = torch.topk(couple_user_predict,k=1000)
+    # result_restaurant_list = np.array(couple_user_rating).tolist()
 
 
     # 유저의 인터액션 불러오기
@@ -161,23 +189,34 @@ async def test_couple(user1: int, user2: int):
     ids_query = ', '.join(map(str, result_restaurant_list))
 
     # 결과값에 매칭되는 RST/CAFE/BAR인지의 types 리스트 요청
-    # sql = f"SELECT name, type FROM restaurant WHERE restaurant_id IN ({ids_query}) ORDER BY FIELD(restaurant_id, {ids_query})"
-    sql = f"SELECT name, type FROM restaurant WHERE restaurant_id IN ({ids_query}) ORDER BY FIELD(restaurant_id, {ids_query}) IN (SELECT restaurant_id FROM menu where ranking = 1)"
-    cursor.execute(sql)
+    sql = f"SELECT name, type FROM restaurant WHERE restaurant_id IN ({ids_query}) ORDER BY FIELD(restaurant_id, {ids_query})"
+    sql_query = f"""
+                    SELECT r.restaurant_id, r.name, r.type
+                    FROM restaurant AS r
+                    WHERE r.restaurant_id IN ({ids_query})
+                    AND r.restaurant_id IN (
+                        SELECT DISTINCT restaurant_id
+                        FROM menu
+                        WHERE ranking IS NOT NULL
+                    )
+                    ORDER BY FIELD(r.restaurant_id, {ids_query});
+                """
+    cursor.execute(sql_query)
     sql_results = cursor.fetchall()
 
     # 결과값 음식점/카페/술집 분리
     RST, CAFE, BAR = [], [], []
-    for result_id, sql_result in zip(result_restaurant_list, sql_results):
-        restaurant_name = sql_result[0]
-        category = sql_result[1]
+    for sql_result in sql_results:
+        restaurant_id = sql_result[0]
+        restaurant_name = sql_result[1]
+        category = sql_result[2]
 
         if category == 'RST':
-            RST.append((result_id, restaurant_name))
+            RST.append((restaurant_id, restaurant_name))
         elif category == 'CAFE':
-            CAFE.append((result_id, restaurant_name))
+            CAFE.append((restaurant_id, restaurant_name))
         else:
-            BAR.append((result_id, restaurant_name))
+            BAR.append((restaurant_id, restaurant_name))
 
 
     # 결과값 딕셔너리화
