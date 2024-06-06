@@ -56,7 +56,7 @@ def DATA_LOADER(dataset):
 
         elif dataset == 'HD':
             # 홍대 레스토랑 임베딩 로드
-            restaurant_path = os.path.join(data_folder, 'rst_embedding.csv')
+            restaurant_path = os.path.join(data_folder, 'rst_embedding_HD.csv')
             restaurant_embedding_HD = pd.read_csv(restaurant_path, index_col="user_id")
             restaurant_embedding_HD["embedding"] = restaurant_embedding_HD["embedding"].apply(ast.literal_eval)
 
