@@ -7,6 +7,7 @@ import numpy as np
 from . import functions
 import pymysql
 from typing import List, Union
+from pydantic import BaseModel
 
 
 # DB에 연결
@@ -230,10 +231,13 @@ async def test_couple(user1: int, user2: int, district: str):
 
     return result_dict
 
-# id_list = [0, 1, 2, 3, 4]
+
+class Item(BaseModel):
+    restaurantids: List[int]
+
 # Cold Start
 @app.post("/coldstart")
-async def coldstart(new_user: int, restaurantid: Union[List[int], None] = None):
+async def coldstart(new_user: int, item: Item):
     global restaurant_embedding_KJ, user_embedding
 
     # 신규 유저 임베딩 초기화
@@ -241,9 +245,11 @@ async def coldstart(new_user: int, restaurantid: Union[List[int], None] = None):
     nn.init.normal_(new_user_embedding, std=0.1)
     new_user_embedding = new_user_embedding[0]
 
+    # post로 전달받은 신규 유저가 선택한 5개의 식당 id
+    ids = item.restaurantids
     # 선택한 식당에 맞게 임베딩 업데이트
-    for id in restaurantid:
-        selected_embedding = torch.tensor(restaurant_embedding_KJ.loc[id, 'embedding'])
+    for id in ids:
+        selected_embedding = torch.tensor(restaurant_embedding_KJ[restaurant_embedding_KJ.index == id]['embedding'].values[0])
         new_user_embedding += selected_embedding
     
     # 정규화
@@ -258,7 +264,7 @@ async def coldstart(new_user: int, restaurantid: Union[List[int], None] = None):
     functions.SAVE(update_row)
     user_embedding = functions.DATA_LOADER('user')
 
-    return restaurantid
+    return ids
 
 
 
