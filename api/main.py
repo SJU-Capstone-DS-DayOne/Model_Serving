@@ -3,6 +3,7 @@ from fastapi import FastAPI
 import json
 import torch
 from torch import nn
+import torch.nn.functional as F
 import numpy as np
 from . import functions
 import pymysql
@@ -253,7 +254,7 @@ async def coldstart(new_user: int, item: Item):
         new_user_embedding += selected_embedding
     
     # 정규화
-    new_user_embedding = new_user_embedding / 5 
+    new_user_embedding = new_user_embedding / len(ids)
     # print(new_user_embedding)
 
     # 새로 추가할 신규 유저 행 생성
@@ -265,6 +266,46 @@ async def coldstart(new_user: int, item: Item):
     user_embedding = functions.DATA_LOADER('user')
 
     return ids
+
+# Review Sorting
+@app.get("/review/sort")
+async def sort(user_id: int, restaurant_id: int):
+    global user_embedding
+
+    # DB 연결 재확인
+    connection.ping(reconnect=True)
+
+    cur_user_embedding = torch.tensor(user_embedding[user_embedding.index == user_id]['embedding'].values[0])
+    
+    # 주어진 restaurant_id의 모든 review_id, member_id 조회 (로그인된 user_id는 제외)
+    sql_query = f"""
+                SELECT review_id, member_id, content
+                FROM review
+                WHERE restaurant_id = {restaurant_id}
+                AND member_id != {user_id};
+                """
+    cursor.execute(sql_query)
+    review_datas = cursor.fetchall()
+
+    # sql결과에 대해 리뷰 작성한 user와 현재 user의 cosine similarity 계산
+    compare_list = []
+    for review_data in review_datas:
+        review_id, member_id, review_content = review_data[0], review_data[1], review_data[2]
+        reviewer_embedding = torch.tensor(user_embedding[user_embedding.index == member_id]['embedding'].values[0])
+        similarity = F.cosine_similarity(cur_user_embedding, reviewer_embedding, dim=0).item()
+        compare_list.append((review_id, member_id, similarity, review_content))
+    
+    # similarity를 기준으로 내림차순 정렬
+    sorted_list = sorted(compare_list, key=lambda x: x[2], reverse=True)
+
+    # review_id만 추출하여 result 리스트에 할당
+    result = [item[0] for item in sorted_list]
+
+    result_dic = {
+        "review_ids": result
+    }
+
+    return result_dic
 
 
 
