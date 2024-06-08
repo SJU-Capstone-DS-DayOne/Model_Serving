@@ -252,7 +252,7 @@ async def coldstart(new_user: int, item: Item):
 
     # 신규 유저 업데이트 후 임베딩 다시 불러오기
     functions.SAVE(update_row)
-    user_embedding = functions.DATA_LOADER('user')
+    user_embedding = functions.DATA_LOADER('user_KJ')
 
     return "New user's embedding is successfully saved!"
 

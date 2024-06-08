@@ -41,6 +41,11 @@ def DATA_LOADER(dataset):
         user_path = os.path.join(data_folder, 'user_embedding.csv')
         user_embedding = pd.read_csv(user_path, index_col='user_id')
 
+        try:
+            user_embedding.drop(columns='Unnamed: 0',inplace=True)
+        except:
+            pass        
+
         # string 형식을 python list로 변환
         user_embedding['embedding'] = user_embedding['embedding'].apply(ast.literal_eval)
 
@@ -105,6 +110,8 @@ def SAVE(row):
     except:
         pass
 
-    user_embedding.loc[len(user_embedding)] = row
-    user_embedding.to_csv(user_path)
+    # user_embedding.loc[len(user_embedding)] = row
+    # user_embedding.to_csv(user_path)
+    df_row = pd.DataFrame(data=[row])
+    df_row.to_csv(user_path, sep=",", encoding="utf-8-sig", mode="a",header=False)
     
