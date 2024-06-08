@@ -63,7 +63,7 @@ def DATA_LOADER(dataset):
             return restaurant_embedding_HD
         else:
             # 잠실 레스토랑 임베딩 로드
-            restaurant_path = os.path.join(data_folder, 'rst_embedding.csv')
+            restaurant_path = os.path.join(data_folder, 'rst_embedding_JS.csv')
             restaurant_embedding_JS = pd.read_csv(restaurant_path, index_col="user_id")
             restaurant_embedding_JS["embedding"] = restaurant_embedding_JS["embedding"].apply(ast.literal_eval)
 
