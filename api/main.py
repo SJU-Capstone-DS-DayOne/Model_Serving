@@ -89,16 +89,19 @@ async def recommend_couple(user1: int, user2: int, district: str):
     # 지역별로 달리하여
     if district == '광진':
         couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_KJ.t()))
+        _, couple_user_rating = torch.topk(couple_user_predict,k=1000)
+        result_restaurant_list = restaurant_embedding_KJ.iloc[list(couple_user_rating)].index.tolist()
+
     elif district == '홍대':
         couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_HD.t()))
+        _, couple_user_rating = torch.topk(couple_user_predict,k=537)
+        result_restaurant_list = restaurant_embedding_HD.iloc[list(couple_user_rating)].index.tolist()
+
     elif district == '잠실':
         couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_JS.t()))
-    else:
-        return "[Error] Wrong District Name"
+        _, couple_user_rating = torch.topk(couple_user_predict,k=500)
+        result_restaurant_list = restaurant_embedding_JS.iloc[list(couple_user_rating)].index.tolist()
 
-
-    _, couple_user_rating = torch.topk(couple_user_predict,k=1000)
-    result_restaurant_list = np.array(couple_user_rating).tolist()
 
     # sql문에 넣을 id들의 집합으로 변환
     ids_query = ', '.join(map(str, result_restaurant_list))
