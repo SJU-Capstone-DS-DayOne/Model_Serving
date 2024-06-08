@@ -33,10 +33,11 @@ def DATA_LOADER(dataset):
     current_dir = os.path.dirname(__file__)
 
     # 'Data' 폴더 경로 설정
+    # 유저 임베딩
     data_folder = os.path.join(current_dir, '..', 'Data')
 
-    if dataset == 'user':
-        # 유저/레스토랑 임베딩 로드
+    if dataset == 'user_KJ':
+        # 광진의 유저/레스토랑 임베딩 로드
         user_path = os.path.join(data_folder, 'user_embedding.csv')
         user_embedding = pd.read_csv(user_path, index_col='user_id')
 
@@ -44,7 +45,28 @@ def DATA_LOADER(dataset):
         user_embedding['embedding'] = user_embedding['embedding'].apply(ast.literal_eval)
 
         return user_embedding
+    
+    elif dataset == 'user_HD':
+        # 홍대의 유저/레스토랑 임베딩 로드
+        user_path = os.path.join(data_folder, 'user_embedding_HD.csv')
+        user_embedding = pd.read_csv(user_path, index_col='user_id')
 
+        # string 형식을 python list로 변환
+        user_embedding['embedding'] = user_embedding['embedding'].apply(ast.literal_eval)
+
+        return user_embedding
+
+    elif dataset == 'user_JS':
+        # 잠실의 유저/레스토랑 임베딩 로드
+        user_path = os.path.join(data_folder, 'user_embedding_JS.csv')
+        user_embedding = pd.read_csv(user_path, index_col='user_id')
+
+        # string 형식을 python list로 변환
+        user_embedding['embedding'] = user_embedding['embedding'].apply(ast.literal_eval)
+
+        return user_embedding
+    
+    # 레스토랑 임베딩
     else:
         if dataset == 'KJ':
             # 광진 레스토랑 임베딩 로드
@@ -61,6 +83,7 @@ def DATA_LOADER(dataset):
             restaurant_embedding_HD["embedding"] = restaurant_embedding_HD["embedding"].apply(ast.literal_eval)
 
             return restaurant_embedding_HD
+        
         else:
             # 잠실 레스토랑 임베딩 로드
             restaurant_path = os.path.join(data_folder, 'rst_embedding_JS.csv')
@@ -85,13 +108,3 @@ def SAVE(row):
     user_embedding.loc[len(user_embedding)] = row
     user_embedding.to_csv(user_path)
     
-"""
-    try:
-        user_embedding.drop(columns='Unnamed: 0',inplace=True)
-        restaurant_embedding_KJ.drop(columns='Unnamed: 0',inplace=True)
-    except:
-        pass
-
-    return user_embedding, restaurant_embedding_KJ, restaurant_embedding_HD, restaurant_embedding_JS
-
-"""
