@@ -158,16 +158,18 @@ async def test_couple(user1: int, user2: int, district: str):
     if district == '광진':
         couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_KJ.t()))
         _, couple_user_rating = torch.topk(couple_user_predict,k=1000)
-        result_restaurant_list = np.array(couple_user_rating).tolist()
-        # result_restaurant_list = [r+]
+        result_restaurant_list = restaurant_embedding_KJ.iloc[list(couple_user_rating)].index.tolist()
+
     elif district == '홍대':
         couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_HD.t()))
-        _, couple_user_rating = torch.topk(couple_user_predict,k=500)
-        result_restaurant_list = np.array(couple_user_rating).tolist()
+        _, couple_user_rating = torch.topk(couple_user_predict,k=537)
+        result_restaurant_list = restaurant_embedding_HD.iloc[list(couple_user_rating)].index.tolist()
+
     elif district == '잠실':
         couple_user_predict = activate_f(torch.matmul(couple_embedding_vector, embeddings_tensor_JS.t()))
         _, couple_user_rating = torch.topk(couple_user_predict,k=500)
-        result_restaurant_list = np.array(couple_user_rating).tolist()
+        result_restaurant_list = restaurant_embedding_JS.iloc[list(couple_user_rating)].index.tolist()
+
     else:
         return "[Error] Wrong District Name"
 
@@ -177,12 +179,12 @@ async def test_couple(user1: int, user2: int, district: str):
 
 
     # 유저의 인터액션 불러오기
-    sql = f"SELECT RST.name FROM review AS REV INNER JOIN restaurant AS RST ON REV.restaurant_id = RST.restaurant_id WHERE REV.member_id = {user1};"
+    sql = f"SELECT distinct RST.name FROM review AS REV INNER JOIN restaurant AS RST ON REV.restaurant_id = RST.restaurant_id WHERE REV.member_id = {user1};"
     cursor.execute(sql)
     user1_interactions = cursor.fetchall()
     user1_interactions = [user_interaction[0] for user_interaction in user1_interactions]
 
-    sql = f"SELECT RST.name FROM review AS REV INNER JOIN restaurant AS RST ON REV.restaurant_id = RST.restaurant_id WHERE REV.member_id = {user2};"
+    sql = f"SELECT distinct RST.name FROM review AS REV INNER JOIN restaurant AS RST ON REV.restaurant_id = RST.restaurant_id WHERE REV.member_id = {user2};"
     cursor.execute(sql)
     user2_interactions = cursor.fetchall()
     user2_interactions = [user_interaction[0] for user_interaction in user2_interactions]
@@ -265,7 +267,7 @@ async def coldstart(new_user: int, item: Item):
     functions.SAVE(update_row)
     user_embedding = functions.DATA_LOADER('user')
 
-    return ids
+    return "New user's embedding is successfully saved!"
 
 # Review Sorting
 @app.get("/review/sort")
