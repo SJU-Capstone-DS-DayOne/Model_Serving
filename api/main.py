@@ -15,16 +15,16 @@ from pydantic import BaseModel
 connection = functions.DB_CONNECT()
 cursor = connection.cursor()
 
-# 유저/레스토랑 임베딩 텐서 로드
-# user_embedding, restaurant_embedding_KJ, restaurant_embedding_HD, restaurant_embedding_JS = functions.DATA_LOADER()
 
+# 유저/레스토랑 임베딩 텐서 불러오기
+user_embedding = functions.DATA_LOADER('user_KJ')
+user_embedding_HD = functions.DATA_LOADER('user_HD')
+user_embedding_JS = functions.DATA_LOADER('user_JS')
 
-
-#  --
-user_embedding = functions.DATA_LOADER('user')
 restaurant_embedding_KJ = functions.DATA_LOADER('KJ')
 restaurant_embedding_HD = functions.DATA_LOADER('HD')
 restaurant_embedding_JS = functions.DATA_LOADER('JS')
+
 
 # 전체 레스토랑에 대한 임베딩 텐서화
 embeddings_list = restaurant_embedding_KJ['embedding'].tolist()
@@ -36,9 +36,9 @@ embeddings_tensor_HD = torch.tensor(embeddings_list)
 embeddings_list = restaurant_embedding_JS['embedding'].tolist()
 embeddings_tensor_JS = torch.tensor(embeddings_list)
 
+
 # 활성 함수 정의
 activate_f = nn.Sigmoid()
-
 
 
 
@@ -50,25 +50,6 @@ app = FastAPI()
 @app.get("/")
 def root():
     return {"Default": "Hello World-!"}
-
-
-# 단일 유저 추천
-@app.get("/recommend")
-async def recommend(user: int):
-    # 유저 임베딩 텐서화
-    user_embedding_vector = torch.tensor(user_embedding.loc[user,'embedding'])
-    
-    # 단일 유저 추론
-    one_user_predict = activate_f(torch.matmul(user_embedding_vector,embeddings_tensor_KJ.t()))
-    _, one_user_rating = torch.topk(one_user_predict, k=100)
-    result_restaurant_list = np.array(one_user_rating).tolist()
-
-    result_dict = {
-        "user_num": user,
-        "result": result_restaurant_list
-    }
-
-    return json.dumps(result_dict)
 
 
 # 커플 유저 추천
@@ -246,6 +227,9 @@ class Item(BaseModel):
 async def coldstart(new_user: int, item: Item):
     global restaurant_embedding_KJ, user_embedding
 
+    # DB 연결 재확인
+    connection.ping(reconnect=True)
+
     # 신규 유저 임베딩 초기화
     new_user_embedding = torch.empty(1, 64)
     nn.init.normal_(new_user_embedding, std=0.1)
@@ -268,7 +252,7 @@ async def coldstart(new_user: int, item: Item):
 
     # 신규 유저 업데이트 후 임베딩 다시 불러오기
     functions.SAVE(update_row)
-    user_embedding = functions.DATA_LOADER('user')
+    user_embedding = functions.DATA_LOADER('user_KJ')
 
     return "New user's embedding is successfully saved!"
 
@@ -296,7 +280,18 @@ async def sort(user_id: int, restaurant_id: int):
     compare_list = []
     for review_data in review_datas:
         review_id, member_id, review_content = review_data[0], review_data[1], review_data[2]
-        reviewer_embedding = torch.tensor(user_embedding[user_embedding.index == member_id]['embedding'].values[0])
+        try:
+            if restaurant_id >= 0 and restaurant_id <= 2107:
+                reviewer_embedding = torch.tensor(user_embedding[user_embedding.index == member_id]['embedding'].values[0])
+            elif restaurant_id >= 2108 and restaurant_id <= 2645:
+                reviewer_embedding = torch.tensor(user_embedding_HD[user_embedding_HD.index == member_id]['embedding'].values[0])
+            elif 2646 <= restaurant_id <= 3170:
+                reviewer_embedding = torch.tensor(user_embedding_JS[user_embedding_JS.index == member_id]['embedding'].values[0])
+            else:
+                return "[Error] Wrong Restaurant ID"
+        except:
+            return "[Error] user_id out of range"
+        
         similarity = F.cosine_similarity(cur_user_embedding, reviewer_embedding, dim=0).item()
         compare_list.append((review_id, member_id, similarity, review_content))
     
