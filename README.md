@@ -6,8 +6,8 @@ Repository for serving models of the Palette service using FastAPI framework on 
 
 ## Description
 
-Palette is a dating course recommendation platform for couples. <br>
-This repository covers serving the [recommendation AI model](https://github.com/SJU-Capstone-DS-DayOne/Model) used in the Palette.
+Palette is a date course recommendation platform for couples. <br>
+This repository covers how we serve the [recommender AI model](https://github.com/SJU-Capstone-DS-DayOne/Model) used in the Palette.
 
 ## Method
 
